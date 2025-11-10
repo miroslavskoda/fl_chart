@@ -572,8 +572,6 @@ class LineChartPainter extends AxisChartPainter<LineChartData> {
     final path = appendToPath ?? Path();
     final size = barSpots.length;
 
-    var temp = Offset.zero;
-
     final x = getPixelX(barSpots[0].x, viewSize, holder);
     final y = getPixelY(barSpots[0].y, viewSize, holder);
     if (appendToPath == null) {
@@ -608,50 +606,49 @@ class LineChartPainter extends AxisChartPainter<LineChartData> {
       /// the sharped corners line
       final smoothness = barData.isCurved ? barData.curveSmoothness : 0.0;
 
-      // Calculate tangent at previous point (for smoother curve transitions)
-      // For the first segment (i == 1), use the direction to current point
-      // For other segments, use the average of incoming and outgoing slopes
-      Offset tangentAtPrevious;
-      if (i == 1) {
-        // First segment: use direction from previous to current
-        tangentAtPrevious = (current - previous) * smoothness;
-      } else {
-        // Get the point before previous for slope calculation
-        final beforePrevious = Offset(
-          getPixelX(barSpots[i - 2].x, viewSize, holder),
-          getPixelY(barSpots[i - 2].y, viewSize, holder),
-        );
-        // Use Catmull-Rom style tangent: average of incoming and outgoing slopes
-        tangentAtPrevious = ((current - beforePrevious) / 2) * smoothness;
-      }
+      // Calculate control points using Catmull-Rom spline approach
+      // This creates smoother curves by considering the slope from neighboring points
+      final prevToCurrent = current - previous;
 
-      // Calculate tangent at current point
-      // This is the average of incoming and outgoing slopes (Catmull-Rom style)
-      final tangentAtCurrent = ((next - previous) / 2) * smoothness;
+      // Calculate the horizontal distance for this segment
+      final segmentLength = prevToCurrent.dx;
 
-      final controlPoint1 = previous + tangentAtPrevious;
+      // For control point 1 (attached to previous point):
+      // Use 1/3 of segment length along the averaged tangent direction
+      final tangentSlope = ((next - previous) / 2);
+      final controlOffset1 = Offset(
+            segmentLength / 3,
+            tangentSlope.dy / tangentSlope.dx * (segmentLength / 3),
+          ) *
+          smoothness;
+
+      final controlPoint1 = previous + controlOffset1;
+
+      // For control point 2 (attached to current point):
+      // Use 2/3 of segment length along the averaged tangent direction
+      var controlOffset2 = Offset(
+            segmentLength / 3,
+            tangentSlope.dy / tangentSlope.dx * (segmentLength / 3),
+          ) *
+          smoothness;
 
       if (barData.preventCurveOverShooting) {
-        var tempForCurrent = tangentAtCurrent;
-
-        if ((next - current).dy <= barData.preventCurveOvershootingThreshold ||
-            (current - previous).dy <=
+        if ((next - current).dy.abs() <=
+                barData.preventCurveOvershootingThreshold ||
+            (current - previous).dy.abs() <=
                 barData.preventCurveOvershootingThreshold) {
-          tempForCurrent = Offset(tempForCurrent.dx, 0);
+          controlOffset2 = Offset(controlOffset2.dx, 0);
         }
 
-        if ((next - current).dx <= barData.preventCurveOvershootingThreshold ||
-            (current - previous).dx <=
+        if ((next - current).dx.abs() <=
+                barData.preventCurveOvershootingThreshold ||
+            (current - previous).dx.abs() <=
                 barData.preventCurveOvershootingThreshold) {
-          tempForCurrent = Offset(0, tempForCurrent.dy);
+          controlOffset2 = Offset(0, controlOffset2.dy);
         }
-
-        temp = tempForCurrent;
-      } else {
-        temp = tangentAtCurrent;
       }
 
-      final controlPoint2 = current - temp;
+      final controlPoint2 = current - controlOffset2;
 
       path.cubicTo(
         controlPoint1.dx,
