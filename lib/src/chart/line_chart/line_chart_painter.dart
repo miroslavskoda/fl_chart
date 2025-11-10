@@ -608,18 +608,28 @@ class LineChartPainter extends AxisChartPainter<LineChartData> {
       /// the sharped corners line
       final smoothness = barData.isCurved ? barData.curveSmoothness : 0.0;
 
-      // Calculate control points based on local slopes for smoother curves
-      // This creates more natural-looking curves that follow the data trend better
-      final prevToCurrent = current - previous;
+      // Calculate tangent at previous point (for smoother curve transitions)
+      // For the first segment (i == 1), use the direction to current point
+      // For other segments, use the average of incoming and outgoing slopes
+      Offset tangentAtPrevious;
+      if (i == 1) {
+        // First segment: use direction from previous to current
+        tangentAtPrevious = (current - previous) * smoothness;
+      } else {
+        // Get the point before previous for slope calculation
+        final beforePrevious = Offset(
+          getPixelX(barSpots[i - 2].x, viewSize, holder),
+          getPixelY(barSpots[i - 2].y, viewSize, holder),
+        );
+        // Use Catmull-Rom style tangent: average of incoming and outgoing slopes
+        tangentAtPrevious = ((current - beforePrevious) / 2) * smoothness;
+      }
 
-      // Calculate tangent at previous point (outgoing from previous to current)
-      final tangentAtPrev = prevToCurrent * smoothness;
-
-      // Calculate tangent at current point (average of incoming and outgoing)
-      // This is inspired by Catmull-Rom splines for better smoothness
+      // Calculate tangent at current point
+      // This is the average of incoming and outgoing slopes (Catmull-Rom style)
       final tangentAtCurrent = ((next - previous) / 2) * smoothness;
 
-      final controlPoint1 = previous + tangentAtPrev;
+      final controlPoint1 = previous + tangentAtPrevious;
 
       if (barData.preventCurveOverShooting) {
         var tempForCurrent = tangentAtCurrent;
