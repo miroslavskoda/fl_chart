@@ -603,26 +603,42 @@ class LineChartPainter extends AxisChartPainter<LineChartData> {
         getPixelY(barSpots[i + 1 < size ? i + 1 : i].y, viewSize, holder),
       );
 
-      final controlPoint1 = previous + temp;
-
       /// if the isCurved is false, we set 0 for smoothness,
       /// it means we should not have any smoothness then we face with
       /// the sharped corners line
       final smoothness = barData.isCurved ? barData.curveSmoothness : 0.0;
-      temp = ((next - previous) / 2) * smoothness;
+
+      // Calculate control points based on local slopes for smoother curves
+      // This creates more natural-looking curves that follow the data trend better
+      final prevToCurrent = current - previous;
+
+      // Calculate tangent at previous point (outgoing from previous to current)
+      final tangentAtPrev = prevToCurrent * smoothness;
+
+      // Calculate tangent at current point (average of incoming and outgoing)
+      // This is inspired by Catmull-Rom splines for better smoothness
+      final tangentAtCurrent = ((next - previous) / 2) * smoothness;
+
+      final controlPoint1 = previous + tangentAtPrev;
 
       if (barData.preventCurveOverShooting) {
+        var tempForCurrent = tangentAtCurrent;
+
         if ((next - current).dy <= barData.preventCurveOvershootingThreshold ||
             (current - previous).dy <=
                 barData.preventCurveOvershootingThreshold) {
-          temp = Offset(temp.dx, 0);
+          tempForCurrent = Offset(tempForCurrent.dx, 0);
         }
 
         if ((next - current).dx <= barData.preventCurveOvershootingThreshold ||
             (current - previous).dx <=
                 barData.preventCurveOvershootingThreshold) {
-          temp = Offset(0, temp.dy);
+          tempForCurrent = Offset(0, tempForCurrent.dy);
         }
+
+        temp = tempForCurrent;
+      } else {
+        temp = tangentAtCurrent;
       }
 
       final controlPoint2 = current - temp;
