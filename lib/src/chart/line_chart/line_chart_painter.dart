@@ -616,22 +616,34 @@ class LineChartPainter extends AxisChartPainter<LineChartData> {
       // For control point 1 (attached to previous point):
       // Use 1/3 of segment length along the averaged tangent direction
       final tangentSlope = ((next - previous) / 2);
-      final controlOffset1 = Offset(
-            segmentLength / 3,
-            tangentSlope.dy / tangentSlope.dx * (segmentLength / 3),
-          ) *
-          smoothness;
+
+      // Calculate control offsets, handling near-vertical slopes
+      Offset controlOffset1;
+      Offset controlOffset2;
+
+      if (tangentSlope.dx.abs() < 0.001) {
+        // Nearly vertical tangent - use simple vertical offset
+        controlOffset1 =
+            Offset(segmentLength / 3, tangentSlope.dy / 3) * smoothness;
+        controlOffset2 =
+            Offset(segmentLength / 3, tangentSlope.dy / 3) * smoothness;
+      } else {
+        // Normal case - calculate based on slope
+        controlOffset1 = Offset(
+              segmentLength / 3,
+              tangentSlope.dy / tangentSlope.dx * (segmentLength / 3),
+            ) *
+            smoothness;
+        controlOffset2 = Offset(
+              segmentLength / 3,
+              tangentSlope.dy / tangentSlope.dx * (segmentLength / 3),
+            ) *
+            smoothness;
+      }
 
       final controlPoint1 = previous + controlOffset1;
 
-      // For control point 2 (attached to current point):
-      // Use 2/3 of segment length along the averaged tangent direction
-      var controlOffset2 = Offset(
-            segmentLength / 3,
-            tangentSlope.dy / tangentSlope.dx * (segmentLength / 3),
-          ) *
-          smoothness;
-
+      // Apply prevent curve overshooting if enabled
       if (barData.preventCurveOverShooting) {
         if ((next - current).dy.abs() <=
                 barData.preventCurveOvershootingThreshold ||
